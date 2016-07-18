@@ -19,17 +19,18 @@
                         <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="lDO-ZO-fqA" userLabel="Record Button">
-                                <state key="normal" title="⏺"/>
-                                <connections>
-                                    <action selector="recordPressed:" destination="BYZ-38-t0r" eventType="touchUpInside" id="RFN-AG-bXD"/>
-                                </connections>
-                            </button>
                             <textView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" editable="NO" usesAttributedText="YES" translatesAutoresizingMaskIntoConstraints="NO" id="8ZH-Hs-8Lt">
                                 <color key="backgroundColor" red="0.89854478352116784" green="0.91250303567875546" blue="0.93054887820512822" alpha="1" colorSpace="calibratedRGB"/>
                                 <attributedString key="attributedText"/>
                                 <textInputTraits key="textInputTraits" autocapitalizationType="sentences"/>
                             </textView>
+                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="right" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="lDO-ZO-fqA" userLabel="Record Button">
+                                <fontDescription key="fontDescription" type="system" pointSize="38"/>
+                                <state key="normal" title="⏺"/>
+                                <connections>
+                                    <action selector="recordPressed:" destination="BYZ-38-t0r" eventType="touchUpInside" id="SgX-os-3lR"/>
+                                </connections>
+                            </button>
                         </subviews>
                         <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
@@ -43,6 +44,7 @@
                     </view>
                     <connections>
                         <outlet property="outputView" destination="8ZH-Hs-8Lt" id="FlA-UB-2yp"/>
+                        <outlet property="recordButton" destination="lDO-ZO-fqA" id="OS0-9X-sH2"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
