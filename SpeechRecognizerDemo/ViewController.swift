@@ -36,97 +36,133 @@ class ViewController: UIViewController, SFSpeechRecognizerDelegate, SFSpeechReco
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        // We no longer disable the record button on load.
-        recognizer.delegate = self
+        recordButton.isEnabled = false
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        SFSpeechRecognizer.requestAuthorization { (status) in
+            /*
+              This callback is not guaranteed to be called on the main thread.
+              Add an operation to the main queue if you're updating UI.
+            */
+            OperationQueue.main().addOperation {
+                switch status {
+                case .authorized:
+                    self.recordButton.isEnabled = true
+                case .denied, .restricted:
+                    // Can't do much with that...
+                    self.recordButton.setTitle(self.errorEmoji, for: .disabled)
+                    fallthrough
+                case .notDetermined:
+                    self.recordButton.isEnabled = false
+                }
+            }
+        }
     }
     
     // MARK: Recording and Transcription
     
-    // This method checks/requests authorization, then handles errors or starts transcription
-    func startTranscription() {
-        let status = SFSpeechRecognizer.authorizationStatus()
+    // This method checks/requests authorization, then handles (converts) errors or starts transcription.
+    // Start microphone input and append buffer data to the speech recognition request.
+    func startTranscription() throws {
+        let recordSession = AVAudioSession.sharedInstance()
         
-        // Have we already requested authorization?
-        if status == .notDetermined { // We have not.
-            SFSpeechRecognizer.requestAuthorization { (aStatus) in
-                // This might not be called on the main thread.
-                // Perform on main queue to update UI.
-                OperationQueue.main().addOperation {
-                    self.respondToStatus(aStatus)
-                }
-            }
+        do {
+            try recordSession.setCategory(AVAudioSessionCategoryRecord)
+            try recordSession.setMode(AVAudioSessionModeMeasurement)
+        } catch {
+            // Note: This may actually be impossible to reach on iOS devices.
+            throw SimpleAudioInputError.HardwareIncompatability
+        }
+        
+        // This should only throw if set to "false" while running or paused.
+        try! recordSession.setActive(true, with: .notifyOthersOnDeactivation)
+        
+        // Cancel the previous task if it's running.
+        if (recognitionTask?.isCancelled) != nil {
+            recognitionTask!.cancel()
+        }
+        
+        // Set up a speech recognition request that will use an audio buffer
+        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+        
+        guard let recognitionRequest = recognitionRequest else {
+            // Couldn't create request for one reason or another (e.g. connectivity problem).
+            throw SimpleAudioInputError.IntermittentError
+        }
+        
+        // Add your own custom words. This works way better than it should.
+        recognitionRequest.contextualStrings = ["Framdandy, Hullabalaa, Blamp"]
+        
+        // Other options include "confirmation" (e.g. yes, no - short utterances) and "search" (for search requests.
+        recognitionRequest.taskHint = .dictation
+
+        /*
+         recognitionRequest.shouldReportPartialResults already defaults to true for recording request.
+         It defaults to false for URL-based requests.
+         A false value means wait until request ends to send results.
+         */
+        recognitionRequest.shouldReportPartialResults = true
+        
+        // Input node is a lazily-created singleton used to access audio input buffers.
+        guard let inputNode = audioEngine.inputNode else {
+            throw SimpleAudioInputError.HardwareIncompatability
+        }
+
+        
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { (buffer: AVAudioPCMBuffer, time: AVAudioTime) in
+            // You are allowed to append to the request both before and after using it to create a recognition task.
+            self.recognitionRequest?.append(buffer)
+        }
+        
+        /*
+         Start a speech recognition task with the request we just created.
+         Keep a reference to the task so that we can cancel it.
+         Doing so is less necessary (but still an option) when performing an SFSpeechURLRecognitionRequest.
+        */
+        recognitionTask = recognizer.recognitionTask(with: recognitionRequest, delegate: self)
+        
+        audioEngine.prepare()
+        
+        do {
+            try audioEngine.start()
+        } catch {
+            // This could be a caused by a more permanent problem, but we've made it this far...
+            throw SimpleAudioInputError.IntermittentError
+        }
+        
+        // Waiting for speech...
+        resetTextViewStyle()
+        outputView.text = "..."
+    }
+    
+    // MARK: IBAction
+    
+    @IBAction func recordPressed(_ sender: AnyObject) {
+        if audioEngine.isRunning {
+            // In a multi-view application, be sure to cancel the request with ".cancel()" 
+            // and stop the audio engine when the view disappears.
+            audioEngine.stop()
+            recognitionRequest?.endAudio()
+            recordButton.isEnabled = false
+            // Stopping, will reset title when request finalizes.
+            recordButton.setTitle("...", for: .disabled)
         } else {
-            respondToStatus(status)
+            do {
+                try startTranscription()
+            } catch SimpleAudioInputError.IntermittentError {
+                handleIntermittentError()
+            } catch {
+                // HardwareIncompatibility error or something more surprising. 
+                // This is a major problem for this app.
+                handleSeriousError()
+            }
+            
+            recordButton.setTitle(stopEmoji, for: [])
         }
     }
     
-    // This is used exclusively by startTranscription (further nesting would be really hard to read).
-    private func respondToStatus(_ status: SFSpeechRecognizerAuthorizationStatus) {
-        // Nested function to access microphone audio buffer and start a speech recognition request.
-        func performRequest() throws {
-            // Perform transcription after receiving authorized status
-            let recordSession = AVAudioSession.sharedInstance()
-            
-            do {
-                try recordSession.setCategory(AVAudioSessionCategoryRecord)
-                try recordSession.setMode(AVAudioSessionModeMeasurement)
-            } catch {
-                // Note: This may actually be impossible to reach on iOS devices.
-                throw SimpleAudioInputError.HardwareIncompatability
-            }
-            try! recordSession.setActive(true, with: .notifyOthersOnDeactivation)
-            
-            // Cancel the previous task if it's running.
-            if (recognitionTask?.isCancelled) != nil {
-                recognitionTask!.cancel()
-            }
-            
-            // Create a speech recognition request using an audio buffer
-            recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
-            
-            guard let recognitionRequest = recognitionRequest else { throw SimpleAudioInputError.IntermittentError }
-            recognitionRequest.contextualStrings = ["Framdandy, Hullabalaa, Blamp"]
-            recognitionRequest.taskHint = .dictation
-            
-            guard let inputNode = audioEngine.inputNode else { throw SimpleAudioInputError.HardwareIncompatability }
-            
-            let recordingFormat = inputNode.outputFormat(forBus: 0)
-            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { (buffer: AVAudioPCMBuffer, time: AVAudioTime) in
-                self.recognitionRequest?.append(buffer)
-            }
-            
-            // Keep a reference to the task so that we can cancel it.
-            recognitionTask = recognizer.recognitionTask(with: recognitionRequest, delegate: self)
-            
-            audioEngine.prepare()
-            do {
-                try audioEngine.start()
-            } catch {
-                // This could be a caused by a more permanent problem, but we've made it this far...
-                throw SimpleAudioInputError.IntermittentError
-            }
-            
-            outputView.text = "..."
-        }
-        
-        switch status {
-        case .authorized: // We're good to go
-            self.recordButton.isEnabled = true
-            do {
-                try performRequest()
-            } catch SimpleAudioInputError.IntermittentError {
-                self.handleIntermittentError()
-            } catch {
-                // HardwareIncompatibility error or something more surprising.
-                // This is a major problem for this app.
-                self.handleSeriousError()
-            }
-        case .denied, .restricted:
-            self.handleSeriousError()
-        default:
-            break
-        }
-    }
     // MARK: Update UI for Errors
     
     func handleIntermittentError() {
@@ -151,22 +187,6 @@ class ViewController: UIViewController, SFSpeechRecognizerDelegate, SFSpeechReco
         outputView.text = errorEmoji
         recordButton.isHidden = true
         // ...or fatalError("Some boring message...")
-    }
-    
-    // MARK: IBAction
-    
-    @IBAction func recordPressed(_ sender: AnyObject) {
-        if audioEngine.isRunning {
-            audioEngine.stop()
-            recognitionRequest?.endAudio()
-            recordButton.isEnabled = false
-            // Stopping, will reset title when request finalizes.
-            recordButton.setTitle("...", for: .disabled)
-        } else {
-            // Ask for permission and start transcription
-            startTranscription()
-            recordButton.setTitle(stopEmoji, for: [])
-        }
     }
     
     // MARK: SFSpeechRecognizerDelegate
