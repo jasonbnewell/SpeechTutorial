@@ -21,7 +21,16 @@
                         <subviews>
                             <textView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" editable="NO" usesAttributedText="YES" translatesAutoresizingMaskIntoConstraints="NO" id="8ZH-Hs-8Lt">
                                 <color key="backgroundColor" red="0.89854478352116784" green="0.91250303567875546" blue="0.93054887820512822" alpha="1" colorSpace="calibratedRGB"/>
-                                <attributedString key="attributedText"/>
+                                <attributedString key="attributedText">
+                                    <fragment>
+                                        <string key="content">It works! You do have to speak punctuation... And there's no backspace. You could add that though.  Test test, 123...  He just kept talking in one long incredibly unbroken sentence moving from topic to topic so that no one had a chance to interrupt it was really quite hip Nautic  Ok well it mostly works  </string>
+                                        <attributes>
+                                            <color key="NSColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                            <font key="NSFont" size="17" name="Helvetica"/>
+                                            <paragraphStyle key="NSParagraphStyle" alignment="left" lineBreakMode="wordWrapping" baseWritingDirection="natural" tighteningFactorForTruncation="0.0"/>
+                                        </attributes>
+                                    </fragment>
+                                </attributedString>
                                 <textInputTraits key="textInputTraits" autocapitalizationType="sentences"/>
                             </textView>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="right" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="lDO-ZO-fqA" userLabel="Record Button">
